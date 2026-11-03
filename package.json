@@ -1,0 +1,72 @@
+{
+  "name": "still",
+  "productName": "Still",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A quiet desktop markdown editor.",
+  "main": "electron/main.cjs",
+  "type": "module",
+  "author": "Still",
+  "build": {
+    "appId": "app.still.editor",
+    "productName": "Still",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.icns",
+      "artifactName": "Still-${version}-${arch}.${ext}",
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] },
+        { "target": "zip", "arch": ["arm64", "x64"] }
+      ],
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "preAutoEntitlements": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist"
+    }
+  },
+  "scripts": {
+    "dev": "concurrently -k -n web,app \"vite\" \"wait-on http://127.0.0.1:5173 && VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "build": "vite build",
+    "start": "vite build && electron .",
+    "app": "vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir --arm64",
+    "dist": "vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --arm64 --x64",
+    "test": "node --test test/*.cjs test/*.js"
+  },
+  "dependencies": {
+    "@tiptap/extension-image": "^3.32.2",
+    "@tiptap/extension-link": "^3.32.2",
+    "@tiptap/extension-placeholder": "^3.32.2",
+    "@tiptap/extension-table": "^3.32.2",
+    "@tiptap/extension-table-cell": "^3.32.2",
+    "@tiptap/extension-table-header": "^3.32.2",
+    "@tiptap/extension-table-row": "^3.32.2",
+    "@tiptap/extension-task-item": "^3.32.2",
+    "@tiptap/extension-task-list": "^3.32.2",
+    "@tiptap/extension-typography": "^3.32.2",
+    "@tiptap/markdown": "^3.32.2",
+    "@tiptap/pm": "^3.32.2",
+    "@tiptap/react": "^3.32.2",
+    "@tiptap/starter-kit": "^3.32.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.2.1",
+    "concurrently": "^10.0.6",
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0",
+    "vite": "^8.3.5",
+    "wait-on": "^9.5.1"
+  }
+}
