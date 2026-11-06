@@ -261,6 +261,11 @@ function registerIpc() {
     })(),
   )
   ipcMain.handle(
+    'fs:save-copy',
+    (_event, file, content) => guard(() => ({ ok: true, ...library.saveCopy(file, content) }))(),
+  )
+  ipcMain.handle('fs:watch', (_event, file) => guard(() => watchOpenFile(file))())
+  ipcMain.handle(
     'fs:rename',
     (_event, file, name) => guard(() => ({ ok: true, ...library.rename(file, name) }))(),
   )
@@ -300,6 +305,41 @@ function registerIpc() {
     if (typeof url === 'string' && /^https?:/i.test(url)) shell.openExternal(url)
     return { ok: true }
   })
+}
+
+let watchedPath = null
+let watchTimer = null
+
+function onWatchedStat(current, previous) {
+  if (!watchedPath) return
+  if (current.mtimeMs === previous.mtimeMs && current.size === previous.size) return
+  if (watchTimer) clearTimeout(watchTimer)
+  const file = watchedPath
+  watchTimer = setTimeout(() => {
+    watchTimer = null
+    if (watchedPath !== file || !mainWindow || mainWindow.isDestroyed()) return
+    try {
+      const content = library.read(file)
+      mainWindow.webContents.send('file-changed', { path: file, content })
+    } catch (error) {
+      const missing = error instanceof Error && error.message === 'Not found'
+      if (missing) mainWindow.webContents.send('file-changed', { path: file, missing: true })
+    }
+  }, 180)
+}
+
+function watchOpenFile(file) {
+  if (watchedPath) fs.unwatchFile(watchedPath, onWatchedStat)
+  if (watchTimer) {
+    clearTimeout(watchTimer)
+    watchTimer = null
+  }
+  watchedPath = null
+  if (typeof file !== 'string' || !file) return { ok: true }
+  library.contains(file)
+  watchedPath = file
+  fs.watchFile(file, { interval: 700, persistent: false }, onWatchedStat)
+  return { ok: true }
 }
 
 const gotLock = app.requestSingleInstanceLock()

@@ -245,6 +245,15 @@ function createLibrary({ stateFile, memory } = {}) {
     return { path: destReal, roots: [...state.roots] }
   }
 
+  function saveCopy(file, content) {
+    const realFile = assertInside(file)
+    const ext = path.extname(realFile)
+    const stem = path.basename(realFile, ext)
+    const dest = uniquePath(path.dirname(realFile), `${stem} copy${ext}`)
+    write(dest, content)
+    return { path: dest }
+  }
+
   function duplicate(target) {
     const realTarget = assertInside(target)
     const ext = path.extname(realTarget)
@@ -424,6 +433,7 @@ function createLibrary({ stateFile, memory } = {}) {
     list,
     read,
     write,
+    saveCopy,
     rename,
     duplicate,
     remove,

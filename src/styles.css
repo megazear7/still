@@ -463,10 +463,52 @@ body.is-resizing .side-resize {
 }
 
 .stage {
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
   background: var(--bg);
+}
+
+.conflict {
+  position: absolute;
+  z-index: 8;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  width: min(560px, calc(100% - 48px));
+  padding: 14px 16px 12px;
+  background: rgba(52, 44, 36, 0.94);
+  border: 1px solid rgba(246, 239, 228, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+.conflict p {
+  margin: 0 0 10px;
+  color: var(--faint);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.conflict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.conflict button {
+  background: rgba(246, 239, 228, 0.06);
+  border: none;
+  color: var(--text-soft);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.conflict button:hover {
+  background: rgba(246, 239, 228, 0.12);
+  color: var(--text);
 }
 
 .page-scroll {

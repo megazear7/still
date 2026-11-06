@@ -5,6 +5,7 @@ import { Menu } from './components/Menu'
 import { Outline } from './components/Outline'
 import { Search } from './components/Search'
 import { baseName, parentDir, rebasePath } from './paths'
+import { decideExternal } from './sync'
 
 function clampSide(value) {
   const max = Math.min(560, Math.max(220, window.innerWidth - 420))
@@ -24,6 +25,7 @@ export function App() {
   const [menu, setMenu] = useState(null)
   const [renameRequest, setRenameRequest] = useState(null)
   const [side, setSide] = useState(256)
+  const [conflict, setConflict] = useState(null)
 
   const rootsRef = useRef([])
   const expandedRef = useRef(new Set())
@@ -34,8 +36,60 @@ export function App() {
   const idRef = useRef(1)
   const jumpRef = useRef(() => {})
   const findRef = useRef({ apply: () => ({ count: 0, current: 0 }) })
+  const replaceRef = useRef(() => {})
   const api = useRef({})
   const sideRef = useRef(256)
+  const diskRef = useRef(null)
+  const touchedRef = useRef(false)
+  const writingRef = useRef(0)
+  const forceWriteRef = useRef(false)
+  const conflictRef = useRef(null)
+
+  function rememberConflict(next) {
+    conflictRef.current = next
+    setConflict(next)
+  }
+
+  function adoptExternal(content) {
+    const path = docRef.current?.path
+    if (!path) return
+    const shown = replaceRef.current(content)
+    const markdown = typeof shown === 'string' ? shown : content
+    diskRef.current = content
+    touchedRef.current = false
+    latest.current = { path, markdown, dirty: false }
+    rememberConflict(null)
+  }
+
+  function considerExternal(payload) {
+    if (writingRef.current > 0) return
+    const path = docRef.current?.path
+    if (!payload || payload.path !== path || payload.missing) return
+    const incoming = payload.content
+    const action = decideExternal({
+      editor: latest.current.markdown,
+      disk: diskRef.current,
+      touched: touchedRef.current,
+      incoming,
+    })
+    if (action === 'sync') {
+      diskRef.current = incoming
+      if (incoming === latest.current.markdown) {
+        latest.current.dirty = false
+        if (conflictRef.current) rememberConflict(null)
+      }
+      return
+    }
+    if (action === 'reload') {
+      adoptExternal(incoming)
+      return
+    }
+    if (timer.current) {
+      clearTimeout(timer.current)
+      timer.current = null
+    }
+    rememberConflict({ path, content: incoming })
+  }
 
   function updateExpanded(next, persist = true) {
     expandedRef.current = next
@@ -96,12 +150,32 @@ export function App() {
     }
     const run = async () => {
       const current = latest.current
+      if (conflictRef.current && !forceWriteRef.current) return
       if (!current.dirty || !current.path || !still) return
       const snapshot = { path: current.path, markdown: current.markdown }
+      if (!forceWriteRef.current) {
+        const onDisk = await still.read(snapshot.path)
+        if (onDisk?.ok && onDisk.content !== diskRef.current && onDisk.content !== snapshot.markdown) {
+          current.dirty = true
+          if (timer.current) {
+            clearTimeout(timer.current)
+            timer.current = null
+          }
+          rememberConflict({ path: snapshot.path, content: onDisk.content })
+          return
+        }
+      }
       current.dirty = false
-      const result = await still.write(snapshot.path, snapshot.markdown)
-      if (!result?.ok && latest.current.path === snapshot.path && latest.current.markdown === snapshot.markdown) {
-        latest.current.dirty = true
+      writingRef.current += 1
+      try {
+        const result = await still.write(snapshot.path, snapshot.markdown)
+        if (!result?.ok && latest.current.path === snapshot.path && latest.current.markdown === snapshot.markdown) {
+          latest.current.dirty = true
+        } else if (result?.ok) {
+          diskRef.current = snapshot.markdown
+        }
+      } finally {
+        writingRef.current -= 1
       }
     }
     const next = chain.current.then(run, run)
@@ -112,7 +186,9 @@ export function App() {
   function handleChange(markdown) {
     const path = docRef.current?.path
     if (!path) return
+    touchedRef.current = true
     latest.current = { path, markdown, dirty: true }
+    if (conflictRef.current) return
     scheduleSave()
   }
 
@@ -127,6 +203,9 @@ export function App() {
   function closeDoc() {
     if (timer.current) clearTimeout(timer.current)
     latest.current = { path: null, markdown: null, dirty: false }
+    diskRef.current = null
+    touchedRef.current = false
+    rememberConflict(null)
     docRef.current = null
     setDoc(null)
     setHeadings([])
@@ -150,13 +229,43 @@ export function App() {
     updateExpanded(nextExpanded)
   }
 
+  async function keepMine() {
+    if (!conflictRef.current) return
+    rememberConflict(null)
+    latest.current.dirty = true
+    forceWriteRef.current = true
+    try {
+      await flush()
+    } finally {
+      forceWriteRef.current = false
+    }
+  }
+
+  function discardMine() {
+    const pending = conflictRef.current
+    if (!pending) return
+    adoptExternal(pending.content)
+  }
+
+  async function keepCopy() {
+    const pending = conflictRef.current
+    if (!pending || !still) return
+    const result = await still.saveCopy(pending.path, latest.current.markdown)
+    if (!result?.ok) return
+    await refresh()
+    adoptExternal(pending.content)
+  }
+
   async function openFile(filePath) {
-    if (!still || docRef.current?.path === filePath) return
+    if (!still || docRef.current?.path === filePath || conflictRef.current) return
     await flush()
+    if (conflictRef.current) return
     const result = await still.read(filePath)
     if (!result.ok) return
     const next = { id: ++idRef.current, path: filePath, content: result.content }
     docRef.current = next
+    diskRef.current = result.content
+    touchedRef.current = false
     latest.current = { path: filePath, markdown: result.content, dirty: false }
     setDoc(next)
     setHeadings([])
@@ -190,8 +299,9 @@ export function App() {
   }
 
   async function createNote(dir) {
-    if (!still) return
+    if (!still || conflictRef.current) return
     await flush()
+    if (conflictRef.current) return
     const result = await still.createFile(dir)
     if (!result.ok) return
     updateExpanded(new Set([...expandedRef.current, dir]))
@@ -375,6 +485,7 @@ export function App() {
       still.on('new-note', () => {
         void api.current.newNote()
       }),
+      still.on('file-changed', (payload) => considerExternal(payload)),
     ]
     return () => offs.forEach((off) => off())
   }, [still])
@@ -402,6 +513,8 @@ export function App() {
         if (live && file.ok) {
           const next = { id: ++idRef.current, path: state.lastFile, content: file.content }
           docRef.current = next
+          diskRef.current = next.content
+          touchedRef.current = false
           latest.current = { path: next.path, markdown: next.content, dirty: false }
           setDoc(next)
           expandAncestors(next.path, nextRoots)
@@ -414,6 +527,11 @@ export function App() {
       live = false
     }
   }, [still])
+
+  useEffect(() => {
+    if (!still) return undefined
+    void still.watch(doc?.path || null)
+  }, [doc?.path, still])
 
   useEffect(() => {
     if (!booted) return undefined
@@ -507,7 +625,24 @@ export function App() {
               onActiveHeading={rememberActive}
               jumpRef={jumpRef}
               findRef={findRef}
+              replaceRef={replaceRef}
             />
+          )}
+          {conflict && (
+            <div className="conflict" role="status">
+              <p>This note changed somewhere else. That would replace your edits.</p>
+              <div className="conflict-actions">
+                <button type="button" onClick={() => void keepMine()}>
+                  Save my changes and overwrite
+                </button>
+                <button type="button" onClick={discardMine}>
+                  Throw away my changes and reload
+                </button>
+                <button type="button" onClick={() => void keepCopy()}>
+                  Save a copy and reload
+                </button>
+              </div>
+            </div>
           )}
         </section>
       </div>

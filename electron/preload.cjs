@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('still', {
   search: (query) => invoke('fs:search', query),
   read: (file) => invoke('fs:read', file),
   write: (file, content) => invoke('fs:write', file, content),
+  saveCopy: (file, content) => invoke('fs:save-copy', file, content),
+  watch: (file) => invoke('fs:watch', file),
   rename: (file, name) => invoke('fs:rename', file, name),
   duplicate: (file) => invoke('fs:duplicate', file),
   remove: (file) => invoke('fs:remove', file),
@@ -24,7 +26,7 @@ contextBridge.exposeInMainWorld('still', {
   pathForFile: (file) => webUtils.getPathForFile(file),
   flushDone: () => ipcRenderer.send('flush-done'),
   on: (channel, callback) => {
-    const allowed = new Set(['flush', 'sidebar', 'add-folder', 'new-note', 'window-blur', 'find'])
+    const allowed = new Set(['flush', 'sidebar', 'add-folder', 'new-note', 'window-blur', 'find', 'file-changed'])
     if (!allowed.has(channel)) return () => {}
     const listener = (_event, payload) => callback(payload)
     ipcRenderer.on(channel, listener)

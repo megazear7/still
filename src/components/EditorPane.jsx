@@ -55,7 +55,7 @@ function createImageExtension(filePathRef, painters) {
   })
 }
 
-export function EditorPane({ path, initialMarkdown, onChange, onHeadings, onActiveHeading, jumpRef, findRef }) {
+export function EditorPane({ path, initialMarkdown, onChange, onHeadings, onActiveHeading, jumpRef, findRef, replaceRef }) {
   const filePathRef = useRef(path)
   const painters = useRef(new Set())
   const editorRef = useRef(null)
@@ -177,6 +177,32 @@ export function EditorPane({ path, initialMarkdown, onChange, onHeadings, onActi
   useEffect(() => {
     painters.current.forEach((paint) => paint())
   }, [path])
+
+  useEffect(() => {
+    if (!replaceRef) return undefined
+    replaceRef.current = (markdown) => {
+      const current = editorRef.current
+      if (!current) return markdown
+      const scroller = current.view.dom.closest('.page-scroll')
+      const top = scroller ? scroller.scrollTop : 0
+      current.commands.setContent(markdown, { contentType: 'markdown', emitUpdate: false })
+      const normalized = markdownOf(current)
+      originalRef.current = normalized
+      baselineRef.current = normalized
+      armedRef.current = false
+      publishContents(current)
+      if (scroller) {
+        scroller.scrollTop = top
+        requestAnimationFrame(() => {
+          scroller.scrollTop = top
+        })
+      }
+      return normalized
+    }
+    return () => {
+      replaceRef.current = () => {}
+    }
+  }, [editor, replaceRef])
 
   useEffect(() => {
     let timer = 0

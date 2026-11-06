@@ -122,6 +122,18 @@ test('remembers a panel width inside the allowed range', () => {
   assert.equal(lib.patchState({ side: 900 }).side, 560)
 })
 
+test('saves editor text as a copy and leaves the original file alone', () => {
+  const { root, lib } = setup()
+  const file = path.join(root, 'chapter.md')
+  fs.writeFileSync(file, 'theirs')
+  const copy = lib.saveCopy(file, 'mine')
+  assert.equal(fs.readFileSync(file, 'utf8'), 'theirs')
+  assert.equal(fs.readFileSync(copy.path, 'utf8'), 'mine')
+  assert.equal(path.basename(copy.path), 'chapter copy.md')
+  const again = lib.saveCopy(file, 'mine again')
+  assert.equal(path.basename(again.path), 'chapter copy 2.md')
+})
+
 test('creates uniquely named notes and imports a file from outside', () => {
   const { root, outside, lib } = setup()
   const first = lib.createFile(root)
