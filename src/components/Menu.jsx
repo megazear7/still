@@ -9,6 +9,8 @@ export function Menu({
   onNewFolder,
   onRename,
   onDuplicate,
+  onVersion,
+  onCopy,
   onReveal,
   onDelete,
   onRemoveRoot,
@@ -53,6 +55,23 @@ export function Menu({
         ['Rename', () => run(onRename)],
         ['Duplicate', () => run(onDuplicate)],
         ['Reveal in Finder', () => run(onReveal)],
+        ...(entry.type === 'file'
+          ? [
+              '—',
+              ['New major version', () => run(() => onVersion('major'))],
+              ['New minor version', () => run(() => onVersion('minor'))],
+              ['New patch version', () => run(() => onVersion('patch'))],
+            ]
+          : []),
+        ...(entry.type === 'file'
+          ? [
+              '—',
+              ['Copy name', () => run(() => onCopy('name'))],
+              ['Copy content', () => run(() => onCopy('content'))],
+              ['Copy relative path', () => run(() => onCopy('relative'))],
+              ['Copy full path', () => run(() => onCopy('path'))],
+            ]
+          : []),
         '—',
         [
           confirming ? 'Delete?' : 'Delete',
@@ -68,7 +87,8 @@ export function Menu({
       ]
 
   const left = Math.max(8, Math.min(x, window.innerWidth - 208))
-  const top = Math.max(8, Math.min(y, window.innerHeight - 300))
+  const room = entry.type === 'file' ? 620 : 300
+  const top = Math.max(8, Math.min(y, window.innerHeight - room))
 
   return (
     <div ref={ref} className="menu" style={{ left, top }} role="menu">

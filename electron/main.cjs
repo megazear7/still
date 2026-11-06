@@ -1,6 +1,7 @@
 const {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   ipcMain,
   Menu,
@@ -265,6 +266,10 @@ function registerIpc() {
     (_event, file, content) => guard(() => ({ ok: true, ...library.saveCopy(file, content) }))(),
   )
   ipcMain.handle('fs:watch', (_event, file) => guard(() => watchOpenFile(file))())
+  ipcMain.handle('clipboard:write', (_event, text) => {
+    clipboard.writeText(typeof text === 'string' ? text : '')
+    return { ok: true }
+  })
   ipcMain.handle(
     'fs:rename',
     (_event, file, name) => guard(() => ({ ok: true, ...library.rename(file, name) }))(),
@@ -272,6 +277,10 @@ function registerIpc() {
   ipcMain.handle(
     'fs:duplicate',
     (_event, file) => guard(() => ({ ok: true, ...library.duplicate(file) }))(),
+  )
+  ipcMain.handle(
+    'fs:version',
+    (_event, file, level) => guard(() => ({ ok: true, ...library.versionFile(file, level) }))(),
   )
   ipcMain.handle(
     'fs:remove',

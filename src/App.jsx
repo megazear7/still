@@ -4,7 +4,7 @@ import { FileTree } from './components/FileTree'
 import { Menu } from './components/Menu'
 import { Outline } from './components/Outline'
 import { Search } from './components/Search'
-import { baseName, parentDir, rebasePath } from './paths'
+import { baseName, parentDir, rebasePath, relativePath } from './paths'
 import { decideExternal } from './sync'
 
 function clampSide(value) {
@@ -339,6 +339,36 @@ export function App() {
     await refresh()
   }
 
+  async function copyEntry(entry, kind) {
+    if (!still) return
+    const filePath = entry.path
+    let text = ''
+    if (kind === 'name') text = baseName(filePath)
+    else if (kind === 'relative') text = relativePath(filePath, rootsRef.current)
+    else if (kind === 'path') text = filePath
+    else if (kind === 'content') {
+      if (latest.current.path === filePath && typeof latest.current.markdown === 'string') {
+        text = latest.current.markdown
+      } else {
+        const result = await still.read(filePath)
+        if (!result.ok) return
+        text = result.content
+      }
+    } else return
+    await still.copyText(text)
+  }
+
+  async function versionPath(target, level) {
+    if (!still || conflictRef.current) return
+    await flush()
+    if (conflictRef.current) return
+    const result = await still.version(target, level)
+    if (!result.ok) return
+    relocate(target, result.path)
+    updateExpanded(new Set([...expandedRef.current, parentDir(result.path), parentDir(result.archived)]))
+    await refresh()
+  }
+
   async function deletePath(target) {
     if (!still) return
     const open = docRef.current?.path
@@ -660,6 +690,8 @@ export function App() {
             setRenameRequest({ path: menu.entry.path, nonce: Date.now() })
           }}
           onDuplicate={() => void duplicatePath(menu.entry.path)}
+          onVersion={(level) => void versionPath(menu.entry.path, level)}
+          onCopy={(kind) => void copyEntry(menu.entry, kind)}
           onReveal={() => still?.reveal(menu.entry.path)}
           onDelete={() => void deletePath(menu.entry.path)}
           onRemoveRoot={() => void removeRoot(menu.entry.path)}

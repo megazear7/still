@@ -1,7 +1,7 @@
 {
   "name": "still",
   "productName": "Still",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "A quiet desktop markdown editor.",
   "main": "electron/main.cjs",

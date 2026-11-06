@@ -10,6 +10,15 @@ export function parentDir(filePath) {
   return filePath.slice(0, index)
 }
 
+export function relativePath(filePath, roots) {
+  const file = String(filePath || '')
+  const root = (roots || [])
+    .filter((entry) => file === entry || file.startsWith(`${entry}/`))
+    .sort((a, b) => b.length - a.length)[0]
+  if (!root || file === root) return baseName(file)
+  return file.slice(root.length + 1)
+}
+
 export function rebasePath(target, from, to) {
   if (!target || !from || !to) return target
   if (target === from) return to

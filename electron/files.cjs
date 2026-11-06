@@ -1,5 +1,6 @@
 const fs = require('fs')
 const path = require('path')
+const { versionNames } = require('./version.cjs')
 
 const SKIP_NAMES = new Set(['node_modules', '__pycache__'])
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.avif', '.bmp'])
@@ -263,6 +264,34 @@ function createLibrary({ stateFile, memory } = {}) {
     return { path: dest }
   }
 
+  function versionFile(target, level) {
+    const realTarget = assertInside(target)
+    if (!fs.statSync(realTarget).isFile()) throw new Error('Not a file')
+    const dir = path.dirname(realTarget)
+    const { currentName, nextName } = versionNames(path.basename(realTarget), level)
+    const currentPath = path.join(dir, currentName)
+    const nextPath = path.join(dir, nextName)
+    if (currentPath !== realTarget && fs.existsSync(currentPath)) throw new Error('Already exists')
+    if (fs.existsSync(nextPath)) throw new Error('Already exists')
+    const archive = path.join(dir, 'archive')
+    if (fs.existsSync(archive) && !fs.statSync(archive).isDirectory()) {
+      throw new Error('Archive is not a folder')
+    }
+
+    if (currentPath !== realTarget) fs.renameSync(realTarget, currentPath)
+    fs.cpSync(currentPath, nextPath)
+    if (!fs.existsSync(archive)) fs.mkdirSync(archive)
+    const archived = uniquePath(archive, currentName)
+    fs.renameSync(currentPath, archived)
+    if (state.lastFile === realTarget || state.lastFile === currentPath) state.lastFile = nextPath
+    persist()
+    return {
+      path: fs.realpathSync(nextPath),
+      archived: fs.realpathSync(archived),
+      roots: [...state.roots],
+    }
+  }
+
   function remove(target) {
     const realTarget = assertInside(target)
     const rootPaths = state.roots.map((root) => fs.realpathSync(root))
@@ -436,6 +465,7 @@ function createLibrary({ stateFile, memory } = {}) {
     saveCopy,
     rename,
     duplicate,
+    versionFile,
     remove,
     move,
     createFile,
