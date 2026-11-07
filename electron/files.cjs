@@ -1,6 +1,6 @@
 const fs = require('fs')
 const path = require('path')
-const { versionNames } = require('./version.cjs')
+const { replaceVersion, versionNames } = require('./version.cjs')
 
 const SKIP_NAMES = new Set(['node_modules', '__pycache__'])
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.avif', '.bmp'])
@@ -268,7 +268,7 @@ function createLibrary({ stateFile, memory } = {}) {
     const realTarget = assertInside(target)
     if (!fs.statSync(realTarget).isFile()) throw new Error('Not a file')
     const dir = path.dirname(realTarget)
-    const { currentName, nextName } = versionNames(path.basename(realTarget), level)
+    const { currentName, nextName, from, to } = versionNames(path.basename(realTarget), level)
     const currentPath = path.join(dir, currentName)
     const nextPath = path.join(dir, nextName)
     if (currentPath !== realTarget && fs.existsSync(currentPath)) throw new Error('Already exists')
@@ -280,6 +280,7 @@ function createLibrary({ stateFile, memory } = {}) {
 
     if (currentPath !== realTarget) fs.renameSync(realTarget, currentPath)
     fs.cpSync(currentPath, nextPath)
+    const content = rewriteVersion(nextPath, from, to)
     if (!fs.existsSync(archive)) fs.mkdirSync(archive)
     const archived = uniquePath(archive, currentName)
     fs.renameSync(currentPath, archived)
@@ -288,8 +289,21 @@ function createLibrary({ stateFile, memory } = {}) {
     return {
       path: fs.realpathSync(nextPath),
       archived: fs.realpathSync(archived),
+      content,
       roots: [...state.roots],
     }
+  }
+
+  function rewriteVersion(filePath, fromToken, toToken) {
+    const stat = fs.statSync(filePath)
+    if (!stat.isFile() || stat.size > MAX_READ) return undefined
+    const buffer = fs.readFileSync(filePath)
+    if (buffer.includes(0)) return undefined
+    const text = buffer.toString('utf8')
+    const next = replaceVersion(text, fromToken, toToken)
+    if (next === text) return undefined
+    write(filePath, next)
+    return next
   }
 
   function remove(target) {

@@ -362,9 +362,11 @@ export function App() {
     if (!still || conflictRef.current) return
     await flush()
     if (conflictRef.current) return
+    const open = docRef.current?.path
     const result = await still.version(target, level)
     if (!result.ok) return
     relocate(target, result.path)
+    if (open === target && typeof result.content === 'string') adoptExternal(result.content)
     updateExpanded(new Set([...expandedRef.current, parentDir(result.path), parentDir(result.archived)]))
     await refresh()
   }

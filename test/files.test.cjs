@@ -164,16 +164,26 @@ test('versions an unversioned note, then a named version, into a new archive fol
   assert.equal(path.basename(minor.archived), 'chapter v1.0.1.md')
 
   const scene = path.join(root, 'Ch3-scene1-waystation v1.2.0.md')
-  fs.writeFileSync(scene, 'waystation')
+  fs.writeFileSync(scene, 'Waystation v1.2.0, also 1.2.0, not 11.2.0.')
   const major = lib.versionFile(scene, 'major')
   assert.equal(path.basename(major.path), 'Ch3-scene1-waystation v2.0.0.md')
-  assert.equal(fs.readFileSync(path.join(root, 'archive', 'Ch3-scene1-waystation v1.2.0.md'), 'utf8'), 'waystation')
+  assert.equal(fs.readFileSync(major.path, 'utf8'), 'Waystation v2.0.0, also 2.0.0, not 11.2.0.')
+  assert.equal(
+    fs.readFileSync(path.join(root, 'archive', 'Ch3-scene1-waystation v1.2.0.md'), 'utf8'),
+    'Waystation v1.2.0, also 1.2.0, not 11.2.0.',
+  )
 
   const plain = path.join(root, 'notes 1.2.0.md')
   fs.writeFileSync(plain, 'plain')
   const bumped = lib.versionFile(plain, 'patch')
   assert.equal(path.basename(bumped.path), 'notes 1.2.1.md')
   assert.equal(path.basename(bumped.archived), 'notes 1.2.0.md')
+
+  const labeled = path.join(root, 'labeled.md')
+  fs.writeFileSync(labeled, 'Draft v1.0.0 is ready.')
+  const labeledPatch = lib.versionFile(labeled, 'patch')
+  assert.equal(fs.readFileSync(labeledPatch.path, 'utf8'), 'Draft v1.0.1 is ready.')
+  assert.equal(fs.readFileSync(labeledPatch.archived, 'utf8'), 'Draft v1.0.0 is ready.')
 
   fs.writeFileSync(path.join(root, 'chapter v1.1.1.md'), 'taken')
   assert.throws(() => lib.versionFile(minor.path, 'patch'), /Already exists/)

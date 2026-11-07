@@ -42,10 +42,22 @@ function versionNames(fileName, level) {
   const ext = path.extname(fileName)
   const stem = path.basename(fileName, ext)
   const currentStem = withInitialVersion(stem)
+  const nextStem = bumpStem(stem, level)
   return {
     currentName: `${currentStem}${ext}`,
-    nextName: `${bumpStem(stem, level)}${ext}`,
+    nextName: `${nextStem}${ext}`,
+    from: lastVersion(currentStem)[0],
+    to: lastVersion(nextStem)[0],
   }
 }
 
-module.exports = { versionNames }
+function replaceVersion(content, fromToken, toToken) {
+  const fromNumbers = String(fromToken).match(/(\d+)\.(\d+)\.(\d+)/)
+  const toNumbers = String(toToken).match(/(\d+)\.(\d+)\.(\d+)/)
+  if (!fromNumbers || !toNumbers || typeof content !== 'string') return content
+  const escaped = fromNumbers[0].replace(/\./g, '\\.')
+  const pattern = new RegExp(`(?<![A-Za-z0-9.])([vV])?${escaped}(?!\\d)(?!\\.\\d)`, 'g')
+  return content.replace(pattern, (_match, prefix) => `${prefix || ''}${toNumbers[0]}`)
+}
+
+module.exports = { versionNames, replaceVersion }
